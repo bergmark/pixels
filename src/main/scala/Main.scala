@@ -8,14 +8,19 @@ import scala.io._
 import scala.swing._
 import scala.swing.event.MouseMoved
 
+case class Job (filePath : String, plate : String) {
+
+}
+
 object Data {
-  def make : Array[Array[Color]] = {
-    val fps : Array[String] = Array(
-        "001-bulbasaur-40x50"
-      , "058-growlite-48x48"
-      , "149-dragonite-unsized"
-      )
-    val fp = Main.resourceFromClassloader(fps(1) + ".png").toURI()
+  val jobs : HashMap[String,Job] = HashMap(
+      "bulbasaur" -> Job("001-bulbasaur-40x50"  , "big"  )
+    , "growlite"  -> Job("058-growlite-48x48"   , "small")
+    , "dragonite" -> Job("149-dragonite-unsized", "big"  )
+    )
+
+  def readColors(job : Job) : Array[Array[Color]] = {
+    val fp = Main.resourceFromClassloader(job.filePath + ".png").toURI()
     println("Reading " + fp)
     val img = ImageIO.read(new File(fp))
     val raster = img.getData
@@ -63,21 +68,21 @@ object Data {
   }
 
   def padL(s : String, n : Int) : String = {
-    var res = s;
+    var res = s
     while (res.length < n) {
-      res = " " + res;
+      res = " " + res
     }
     res
   }
   def padR(s : String, n : Int) : String = {
-    var res = s;
+    var res = s
     while (res.length < n) {
-      res = res + " ";
+      res = res + " "
     }
     res
   }
 
-  def make(img : Array[Array[Color]]) : Array[Array[Color]] = {
+  def makeYUV(img : Array[Array[Color]]) : Array[Array[Color]] = {
     val r : Array[Array[Color]] = img.map { r => r.map { c => findClosestColor(c, phColors.keys.toArray) } }
     countColors(r).foreach { case (c:Color, i:Int) =>
       println(
@@ -88,9 +93,9 @@ object Data {
         + ")"
         + ", "
         + padL(i.toString,4) + "px, "
-        + padR(((i.toFloat)/140).toString,11)
+        + padR((i.toFloat/140).toString,11)
         + " ~ "
-        + Math.ceil((i.toFloat)/140) + " squares"
+        + Math.ceil(i.toFloat/140) + " squares"
         )
     }
     println("total pixels = " + countColors(r).foldLeft(0) { case (acc,(_,i)) => acc + i })
@@ -107,14 +112,16 @@ object Data {
   val plates = HashMap[String,Tuple2[Int,Int]]("small" -> Tuple2(24, 24), "big" -> Tuple2(40, 50), "biglandscape" -> Tuple2(50,40))
 }
 
-class DataPanel(log : Log, data : Array[Array[Color]], plate : Tuple2[Int,Int]) extends Panel {
-  val w = 13
-  val h = 13
+class DataPanel(log : Log, data : Array[Array[Color]], job : Job, pixelSize : Int) extends Panel {
+  preferredSize = new Dimension(600, 600)
+
+  val w = pixelSize
+  val h = pixelSize
   val grid = 1
   val plateSepWidth = 4
   val plateSepHeight = 4
-  val plateWidth = plate._1
-  val plateHeight = plate._2
+  val plateWidth  = Data.plates(job.plate)._1
+  val plateHeight = Data.plates(job.plate)._2
   val rows = data.length
   val cols = data(1).length
   val totalWidth = cols*w + ((grid * cols) - 1) + (Math.floor(cols/plateWidth).toInt * plateSepWidth)
@@ -137,7 +144,7 @@ class DataPanel(log : Log, data : Array[Array[Color]], plate : Tuple2[Int,Int]) 
       val x0 = x * w + x * grid + gridX
       val y0 = y * h + y * grid + gridY
       g.fillRect(x0, y0, w, h)
-      val isHoveredColor : Boolean = lastSelectedColor.map(lsc => lsc == clr).getOrElse(false)
+      val isHoveredColor : Boolean = lastSelectedColor.exists(lsc => lsc == clr)
       if (isHoveredColor) {
         g.setColor(Color.green)
         g.drawRect(x0-1, y0-1, w+1, h+1)
@@ -217,24 +224,26 @@ case class GridCell(x : Int, y : Int) {
 }
 
 class Log extends TextArea(rows=40, columns=40) {
-  preferredSize = new Dimension(150,150)
+  preferredSize = new Dimension(600,600)
   def write(s : String) {
     text = s + "\n" + text
   }
 }
 
 object Main extends SimpleSwingApplication {
-  val data = Data.make
+  val pixelSize = 8
+  val job = Data.jobs("growlite")
+  val origColors = Data.readColors(job)
   val log = new Log
-  val img1 = new DataPanel(log, data, Data.plates("small"))
-  val img2 = new DataPanel(log, Data.make(data), Data.plates("small"))
+  val origImg = new DataPanel(log, origColors, job, pixelSize)
+  val yuvImg = new DataPanel(log, Data.makeYUV(origColors), job, pixelSize)
   def top  = new MainFrame {
     title    = "Pixels"
     contents = new GridPanel(2,2) {
       background    = new Color(0, 0,0)
       preferredSize = new Dimension(2000, 1400)
-      contents     += img1
-      contents     += img2
+      contents     += yuvImg
+      contents     += origImg
       contents     += log
 //      contents     += new DataPanel(Data.makeRGB(data))
     }
