@@ -103,23 +103,33 @@ object Data {
   def countColors(img : Array[Array[Color]]) : HashMap[Color,Int] = {
     img.flatten.foldLeft(new HashMap[Color,Int]) { (h, c) => h + (c -> h.get(c).map(i => i + 1).getOrElse(1)) }
   }
+
+  val plates = HashMap[String,Tuple2[Int,Int]]("small" -> Tuple2(24, 24), "big" -> Tuple2(40, 50), "biglandscape" -> Tuple2(50,40))
 }
 
-class DataPanel(log : Log, data : Array[Array[Color]]) extends Panel {
+class DataPanel(log : Log, data : Array[Array[Color]], plate : Tuple2[Int,Int]) extends Panel {
   val w = 10
   val h = 10
   val grid = 1
+  val plateSepWidth = 4
+  val plateSepHeight = 4
+  val plateWidth = plate._1
+  val plateHeight = plate._2
   val rows = data.length
   val cols = data(1).length
+  val totalWidth = cols*w + ((grid * cols) - 1) + (Math.floor(cols/plateWidth).toInt * plateSepWidth)
   override def paintComponent(g : Graphics2D) {
     g.setColor(new Color(0,0,0))
     g.fillRect(0, 0, size.width, size.height)
+
     for {
       x <- 0 until rows
       y <- 0 until cols
     } {
       g.setColor(data(x)(y))
-      g.fillRect(x*w + x*grid, y*w + y*grid, w, w)
+      val gridX: Int = Math.floor(x.toFloat / plateWidth.toFloat).toInt * plateSepWidth
+      val gridY: Int = Math.floor(y.toFloat / plateHeight.toFloat).toInt * plateSepHeight
+      g.fillRect(x * w + x * grid + gridX, y * w + y * grid + gridY, w, w)
     }
   }
   var lastLogged : Option[Cell] = None
@@ -178,8 +188,8 @@ class Log extends TextArea(rows=40, columns=40) {
 object Main extends SimpleSwingApplication {
   val data = Data.make
   val log = new Log
-  val img1 = new DataPanel(log, data)
-  val img2 = new DataPanel(log, Data.make(data))
+  val img1 = new DataPanel(log, data, Data.plates("small"))
+  val img2 = new DataPanel(log, Data.make(data), Data.plates("small"))
   def top  = new MainFrame {
     title    = "Pixels"
     contents = new GridPanel(2,2) {
