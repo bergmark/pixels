@@ -108,8 +108,8 @@ object Data {
 }
 
 class DataPanel(log : Log, data : Array[Array[Color]], plate : Tuple2[Int,Int]) extends Panel {
-  val w = 10
-  val h = 10
+  val w = 13
+  val h = 13
   val grid = 1
   val plateSepWidth = 4
   val plateSepHeight = 4
@@ -118,21 +118,35 @@ class DataPanel(log : Log, data : Array[Array[Color]], plate : Tuple2[Int,Int]) 
   val rows = data.length
   val cols = data(1).length
   val totalWidth = cols*w + ((grid * cols) - 1) + (Math.floor(cols/plateWidth).toInt * plateSepWidth)
+
   override def paintComponent(g : Graphics2D) {
     g.setColor(new Color(0,0,0))
     g.fillRect(0, 0, size.width, size.height)
+
+    val lastSelectedColor : Option[Color] = lastLogged.map(getColor)
 
     for {
       x <- 0 until rows
       y <- 0 until cols
     } {
-      g.setColor(data(x)(y))
+      val clr = data(x)(y)
+      g.setColor(clr)
       val gridX: Int = Math.floor(x.toFloat / plateWidth.toFloat).toInt * plateSepWidth
       val gridY: Int = Math.floor(y.toFloat / plateHeight.toFloat).toInt * plateSepHeight
-      g.fillRect(x * w + x * grid + gridX, y * w + y * grid + gridY, w, w)
+
+      val x0 = x * w + x * grid + gridX
+      val y0 = y * h + y * grid + gridY
+      g.fillRect(x0, y0, w, h)
+      val isHoveredColor : Boolean = lastSelectedColor.map(lsc => lsc == clr).getOrElse(false)
+      if (isHoveredColor) {
+        g.setColor(Color.green)
+        g.drawRect(x0-1, y0-1, w+1, h+1)
+      }
     }
   }
+
   var lastLogged : Option[Cell] = None
+
   listenTo(mouse.moves)
   reactions += {
     case e: MouseMoved =>
@@ -141,10 +155,11 @@ class DataPanel(log : Log, data : Array[Array[Color]], plate : Tuple2[Int,Int]) 
         val clr = getColor(c)
         val gc = gridPosition(c)
         val cellInGrid = cellInGridPosition(c)
-        val clrString =  "#"+Integer.toHexString(clr.getRGB()).substring(2).toUpperCase;
+        val clrString =  "#"+Integer.toHexString(clr.getRGB).substring(2).toUpperCase
         if (!someEquals(lastLogged, Some(c))) {
           lastLogged = Some(c)
-          log.write(/*e.point.x + ", " + e.point.y + " => " + */ gc.toString + cellInGrid.toString + ", color: " + Data.phColors(clr) + ", " + clrString)
+          log.write(/*e.point.x + ", " + e.point.y + " => " + */ gc.toString + ", " + cellInGrid.toString + ", color: " + Data.phColors(clr) + ", " + clrString)
+          repaint()
         }
       }
   }
