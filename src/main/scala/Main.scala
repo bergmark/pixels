@@ -4,8 +4,9 @@ import java.net.URI
 import javax.imageio.ImageIO
 
 import scala.collection.immutable.HashMap
-import scala.swing._
 import scala.io._
+import scala.swing._
+import scala.swing.event.MouseMoved
 
 object Data {
   def make : Array[Array[Color]] = {
@@ -104,32 +105,90 @@ object Data {
   }
 }
 
-class DataPanel(data : Array[Array[Color]]) extends Panel {
+class DataPanel(log : Log, data : Array[Array[Color]]) extends Panel {
+  val w = 10
+  val h = 10
+  val grid = 1
+  val rows = data.length
+  val cols = data(1).length
   override def paintComponent(g : Graphics2D) {
-    val w = 4
-    val grid = 0
     g.setColor(new Color(0,0,0))
     g.fillRect(0, 0, size.width, size.height)
     for {
-      x <- 0 until data.length
-      y <- 0 until data(1).length
+      x <- 0 until rows
+      y <- 0 until cols
     } {
       g.setColor(data(x)(y))
       g.fillRect(x*w + x*grid, y*w + y*grid, w, w)
     }
   }
+  var lastLogged : Option[Cell] = None
+  listenTo(mouse.moves)
+  reactions += {
+    case e: MouseMoved =>
+      val mc = getCell(e.point)
+      mc.map { c =>
+        val clr = getColor(c)
+        val clrString =  "#"+Integer.toHexString(clr.getRGB()).substring(2).toUpperCase;
+        if (!someEquals(lastLogged, Some(c))) {
+          lastLogged = Some(c)
+          log.write(/*e.point.x + ", " + e.point.y + " => " + */ c + ", color: " + Data.phColors(clr) + ", " + clrString)
+        }
+      }
+  }
+
+  def someEquals(a : Option[Cell], b : Option[Cell]) : Boolean = Tuple2(a,b) match {
+    case Tuple2(Some(a),Some(b)) => a.equals(b)
+    case Tuple2(None, None)      => true
+    case _                       => false
+  }
+
+  def getColor(c : Cell) : Color = {
+    data(c.x)(c.y)
+  }
+
+  def getCell(p : Point) : Option[Cell] = {
+    val x = p.x / (w + grid)
+    val y = p.y / (h + grid)
+    if(x < 0 || y < 0 || x >= rows || y >= cols) {
+      None
+    } else {
+      Some(Cell(x, y))
+    }
+  }
+}
+
+case class Cell(x : Int, y : Int) {
+  override def toString : String = {
+    "Cell(" + Data.padL(x.toString,3) + ", " + Data.padL(y.toString,3) + ")"
+  }
+  override def equals(o : Any) = o match {
+    case c:Cell => x == c.x && y == c.y
+    case _ => false
+  }
+}
+
+class Log extends TextArea(rows=40, columns=40) {
+  preferredSize = new Dimension(150,150)
+  def write(s : String) {
+    text = s + "\n" + text
+  }
 }
 
 object Main extends SimpleSwingApplication {
   val data = Data.make
+  val log = new Log
+  val img1 = new DataPanel(log, data)
+  val img2 = new DataPanel(log, Data.make(data))
   def top  = new MainFrame {
     title    = "Pixels"
     contents = new GridPanel(2,2) {
       background    = new Color(0, 0,0)
-      preferredSize = new Dimension(400, 400)
-      contents     += new DataPanel(data)
-      contents     += new DataPanel(Data.make(data))
-      contents     += new DataPanel(Data.makeRGB(data))
+      preferredSize = new Dimension(2000, 1400)
+      contents     += img1
+      contents     += img2
+      contents     += log
+//      contents     += new DataPanel(Data.makeRGB(data))
     }
   }
 }
