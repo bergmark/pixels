@@ -139,12 +139,25 @@ class DataPanel(log : Log, data : Array[Array[Color]], plate : Tuple2[Int,Int]) 
       val mc = getCell(e.point)
       mc.map { c =>
         val clr = getColor(c)
+        val gc = gridPosition(c)
+        val cellInGrid = cellInGridPosition(c)
         val clrString =  "#"+Integer.toHexString(clr.getRGB()).substring(2).toUpperCase;
         if (!someEquals(lastLogged, Some(c))) {
           lastLogged = Some(c)
-          log.write(/*e.point.x + ", " + e.point.y + " => " + */ c + ", color: " + Data.phColors(clr) + ", " + clrString)
+          log.write(/*e.point.x + ", " + e.point.y + " => " + */ gc.toString + cellInGrid.toString + ", color: " + Data.phColors(clr) + ", " + clrString)
         }
       }
+  }
+
+  def gridPosition (c : Cell) : GridCell = {
+    val x = Math.floor(c.x / plateWidth).toInt
+    val y = Math.floor(c.y / plateHeight).toInt
+    GridCell(x, y)
+  }
+
+  def cellInGridPosition (c : Cell) : Cell = {
+    val gc = gridPosition(c)
+    Cell(c.x - gc.x * plateWidth, c.y - gc.y * plateHeight)
   }
 
   def someEquals(a : Option[Cell], b : Option[Cell]) : Boolean = Tuple2(a,b) match {
@@ -171,6 +184,16 @@ class DataPanel(log : Log, data : Array[Array[Color]], plate : Tuple2[Int,Int]) 
 case class Cell(x : Int, y : Int) {
   override def toString : String = {
     "Cell(" + Data.padL(x.toString,3) + ", " + Data.padL(y.toString,3) + ")"
+  }
+  override def equals(o : Any) = o match {
+    case c:Cell => x == c.x && y == c.y
+    case _ => false
+  }
+}
+
+case class GridCell(x : Int, y : Int) {
+  override def toString : String = {
+    "GridCell(" + Data.padL(x.toString,3) + ", " + Data.padL(y.toString,3) + ")"
   }
   override def equals(o : Any) = o match {
     case c:Cell => x == c.x && y == c.y
