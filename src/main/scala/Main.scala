@@ -14,13 +14,14 @@ case class Job (filePath : String, plate : String) {
 
 object Data {
   val jobs : HashMap[String,Job] = HashMap(
-      "bulbasaur" -> Job("001-bulbasaur-40x50"  , "big"  )
-    , "growlite"  -> Job("058-growlite-48x48"   , "small")
-    , "dragonite" -> Job("149-dragonite-unsized", "big"  )
+      "bulbasaur" -> Job("001-bulbasaur-40x50.png"  , "big"  )
+    , "growlite"  -> Job("058-growlite-48x48.png"   , "small")
+    , "dragonite" -> Job("149-dragonite-unsized.png", "big"  )
+    , "walter"    -> Job("walter.png", "small")
     )
 
   def readColors(job : Job) : Array[Array[Color]] = {
-    val fp = Main.resourceFromClassloader(job.filePath + ".png").toURI()
+    val fp = Main.resourceFromClassloader(job.filePath).toURI()
     println("Reading " + fp)
     val img = ImageIO.read(new File(fp))
     val raster = img.getData
@@ -56,7 +57,7 @@ object Data {
     Math.abs(a(0) - b(0)) + Math.abs(a(1) - b(1)) + Math.abs(a(2) - b(2))
   }
 
-  def findClosestColor(c : Color, cs : Array[Color]) : Color = {
+  def findClosestColorYUV(c : Color, cs : Array[Color]) : Color = {
     cs.minBy { c2 => yuvDistance(c, c2) }
   }
 
@@ -83,24 +84,42 @@ object Data {
   }
 
   def makeYUV(img : Array[Array[Color]]) : Array[Array[Color]] = {
-    val r : Array[Array[Color]] = img.map { r => r.map { c => findClosestColor(c, phColors.keys.toArray) } }
-    countColors(r).foreach { case (c:Color, i:Int) =>
-      println(
-          phColors(c)
-        + " (" + padL(c.getRed.toString  ,3)
-        + ","  + padL(c.getGreen.toString,3)
-        + ","  + padL(c.getBlue.toString ,3)
-        + ")"
-        + ", "
-        + padL(i.toString,4) + "px, "
-        + padR((i.toFloat/140).toString,11)
-        + " ~ "
-        + Math.ceil(i.toFloat/140) + " squares"
-        )
-    }
-    println("total pixels = " + countColors(r).foldLeft(0) { case (acc,(_,i)) => acc + i })
-    r
+    img.map { r => r.map { c => findClosestColorYUV(c, phColors.keys.toArray) } }
   }
+
+  def limitColors(maxColors : Int, img : Array[Array[Color]]) : Array[Array[Color]] = {
+    val count = countColors(img)
+    val keptColors : Array[Color] = count.toArray.sortBy(t => -t._2).take(maxColors).map(t => t._1)
+    img.map { r =>
+      r.map { c =>
+        if (keptColors.contains(c)) {
+          c
+        } else {
+          findClosestColorYUV(c, keptColors)
+        }
+      }
+    }
+  }
+
+  def printBuildPlan(img : Array[Array[Color]]) : Array[Array[Color]] = {
+    countColors(img).foreach { case (c:Color, i:Int) =>
+      println(
+        phColors(c)
+          + " (" + padL(c.getRed.toString  ,3)
+          + ","  + padL(c.getGreen.toString,3)
+          + ","  + padL(c.getBlue.toString ,3)
+          + ")"
+          + ", "
+          + padL(i.toString,4) + "px, "
+          + padR((i.toFloat/140).toString,11)
+          + " ~ "
+          + Math.ceil(i.toFloat/140) + " squares"
+      )
+    }
+    println("total pixels = " + countColors(img).foldLeft(0) { case (acc,(_,i)) => acc + i })
+    img
+  }
+
   def makeRGB(img : Array[Array[Color]]) : Array[Array[Color]] = {
     img.map { r => r.map { c => findClosestColorRGB(c, phColors.keys.toArray) } }
   }
@@ -165,7 +184,7 @@ class DataPanel(log : Log, data : Array[Array[Color]], job : Job, pixelSize : In
         val clrString =  "#"+Integer.toHexString(clr.getRGB).substring(2).toUpperCase
         if (!someEquals(lastLogged, Some(c))) {
           lastLogged = Some(c)
-          log.write(/*e.point.x + ", " + e.point.y + " => " + */ gc.toString + ", " + cellInGrid.toString + ", color: " + Data.phColors(clr) + ", " + clrString)
+          log.write(/*e.point.x + ", " + e.point.y + " => " + */ gc.toString + ", " + cellInGrid.toString + ", color: " + Data.phColors.get(clr).getOrElse("N/A") + ", " + clrString)
           repaint()
         }
       }
@@ -236,7 +255,7 @@ object Main extends SimpleSwingApplication {
   val origColors = Data.readColors(job)
   val log = new Log
   val origImg = new DataPanel(log, origColors, job, pixelSize)
-  val yuvImg = new DataPanel(log, Data.makeYUV(origColors), job, pixelSize)
+  val yuvImg = new DataPanel(log, Data.printBuildPlan(Data.makeYUV(origColors)), job, pixelSize)
   def top  = new MainFrame {
     title    = "Pixels"
     contents = new GridPanel(2,2) {
